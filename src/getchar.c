@@ -42,10 +42,6 @@
 
 static buffheader_T redobuff = {{NULL, {NUL}}, NULL, 0, 0};
 static buffheader_T old_redobuff = {{NULL, {NUL}}, NULL, 0, 0};
-#if defined(FEAT_AUTOCMD) || defined(FEAT_EVAL) || defined(PROTO)
-static buffheader_T save_redobuff = {{NULL, {NUL}}, NULL, 0, 0};
-static buffheader_T save_old_redobuff = {{NULL, {NUL}}, NULL, 0, 0};
-#endif
 static buffheader_T recordbuff = {{NULL, {NUL}}, NULL, 0, 0};
 
 static int typeahead_char = 0;		/* typeahead char that's not flushed */
@@ -521,27 +517,22 @@ CancelRedo(void)
  * Save redobuff and old_redobuff to save_redobuff and save_old_redobuff.
  * Used before executing autocommands and user functions.
  */
-static int save_level = 0;
-
     void
-saveRedobuff(void)
+saveRedobuff(save_redo_T *save_redo)
 {
     char_u	*s;
 
-    if (save_level++ == 0)
-    {
-	save_redobuff = redobuff;
-	redobuff.bh_first.b_next = NULL;
-	save_old_redobuff = old_redobuff;
-	old_redobuff.bh_first.b_next = NULL;
+    save_redo->sr_redobuff = redobuff;
+    redobuff.bh_first.b_next = NULL;
+    save_redo->sr_old_redobuff = old_redobuff;
+    old_redobuff.bh_first.b_next = NULL;
 
-	/* Make a copy, so that ":normal ." in a function works. */
-	s = get_buffcont(&save_redobuff, FALSE);
-	if (s != NULL)
-	{
-	    add_buff(&redobuff, s, -1L);
-	    vim_free(s);
-	}
+    /* Make a copy, so that ":normal ." in a function works. */
+    s = get_buffcont(&save_redo->sr_redobuff, FALSE);
+    if (s != NULL)
+    {
+	add_buff(&redobuff, s, -1L);
+	vim_free(s);
     }
 }
 
@@ -550,15 +541,12 @@ saveRedobuff(void)
  * Used after executing autocommands and user functions.
  */
     void
-restoreRedobuff(void)
+restoreRedobuff(save_redo_T *save_redo)
 {
-    if (--save_level == 0)
-    {
-	free_buff(&redobuff);
-	redobuff = save_redobuff;
-	free_buff(&old_redobuff);
-	old_redobuff = save_old_redobuff;
-    }
+    free_buff(&redobuff);
+    redobuff = save_redo->sr_redobuff;
+    free_buff(&old_redobuff);
+    old_redobuff = save_redo->sr_old_redobuff;
 }
 #endif
 
@@ -932,7 +920,7 @@ init_typebuf(void)
 	typebuf.tb_noremap = noremapbuf_init;
 	typebuf.tb_buflen = TYPELEN_INIT;
 	typebuf.tb_len = 0;
-	typebuf.tb_off = 0;
+	typebuf.tb_off = MAXMAPLEN + 4;
 	typebuf.tb_change_cnt = 1;
     }
 }
@@ -986,11 +974,21 @@ ins_typebuf(
 	typebuf.tb_off -= addlen;
 	mch_memmove(typebuf.tb_buf + typebuf.tb_off, str, (size_t)addlen);
     }
+    else if (typebuf.tb_len == 0 && typebuf.tb_buflen
+					       >= addlen + 3 * (MAXMAPLEN + 4))
+    {
+	/*
+	 * Buffer is empty and string fits in the existing buffer.
+	 * Leave some space before and after, if possible.
+	 */
+	typebuf.tb_off = (typebuf.tb_buflen - addlen - 3 * (MAXMAPLEN + 4)) / 2;
+	mch_memmove(typebuf.tb_buf + typebuf.tb_off, str, (size_t)addlen);
+    }
     else
     {
 	/*
 	 * Need to allocate a new buffer.
-	 * In typebuf.tb_buf there must always be room for 3 * MAXMAPLEN + 4
+	 * In typebuf.tb_buf there must always be room for 3 * (MAXMAPLEN + 4)
 	 * characters.  We add some extra room to avoid having to allocate too
 	 * often.
 	 */
@@ -1303,7 +1301,7 @@ alloc_typebuf(void)
 	return FAIL;
     }
     typebuf.tb_buflen = TYPELEN_INIT;
-    typebuf.tb_off = 0;
+    typebuf.tb_off = MAXMAPLEN + 4;  /* can insert without realloc */
     typebuf.tb_len = 0;
     typebuf.tb_maplen = 0;
     typebuf.tb_silent = 0;
@@ -2651,7 +2649,7 @@ vgetorpeek(int advance)
 				ptr = ml_get_curline();
 				while (col < curwin->w_cursor.col)
 				{
-				    if (!vim_iswhite(ptr[col]))
+				    if (!VIM_ISWHITE(ptr[col]))
 					curwin->w_wcol = vcol;
 				    vcol += lbr_chartabsize(ptr, ptr + col,
 							       (colnr_T)vcol);
@@ -3324,7 +3322,7 @@ do_map(
      */
     p = keys;
     do_backslash = (vim_strchr(p_cpo, CPO_BSLASH) == NULL);
-    while (*p && (maptype == 1 || !vim_iswhite(*p)))
+    while (*p && (maptype == 1 || !VIM_ISWHITE(*p)))
     {
 	if ((p[0] == Ctrl_V || (do_backslash && p[0] == '\\')) &&
 								  p[1] != NUL)
@@ -3429,7 +3427,7 @@ do_map(
 			}
 	    /* An abbreviation cannot contain white space. */
 	    for (n = 0; n < len; ++n)
-		if (vim_iswhite(keys[n]))
+		if (VIM_ISWHITE(keys[n]))
 		{
 		    retval = 1;
 		    goto theend;
@@ -4022,9 +4020,9 @@ showmap(
     } while (len < 12);
 
     if (mp->m_noremap == REMAP_NONE)
-	msg_puts_attr((char_u *)"*", hl_attr(HLF_8));
+	msg_puts_attr((char_u *)"*", HL_ATTR(HLF_8));
     else if (mp->m_noremap == REMAP_SCRIPT)
-	msg_puts_attr((char_u *)"&", hl_attr(HLF_8));
+	msg_puts_attr((char_u *)"&", HL_ATTR(HLF_8));
     else
 	msg_putchar(' ');
 
@@ -4036,7 +4034,7 @@ showmap(
     /* Use FALSE below if we only want things like <Up> to show up as such on
      * the rhs, and not M-x etc, TRUE gets both -- webb */
     if (*mp->m_str == NUL)
-	msg_puts_attr((char_u *)"<Nop>", hl_attr(HLF_8));
+	msg_puts_attr((char_u *)"<Nop>", HL_ATTR(HLF_8));
     else
     {
 	/* Remove escaping of CSI, because "m_str" is in a format to be used
@@ -4216,6 +4214,11 @@ set_context_in_map_cmd(
 		arg = skipwhite(arg + 8);
 		continue;
 	    }
+	    if (STRNCMP(arg, "<special>", 9) == 0)
+	    {
+		arg = skipwhite(arg + 9);
+		continue;
+	    }
 #ifdef FEAT_EVAL
 	    if (STRNCMP(arg, "<script>", 8) == 0)
 	    {
@@ -4267,7 +4270,7 @@ ExpandMappings(
     {
 	count = 0;
 
-	for (i = 0; i < 6; ++i)
+	for (i = 0; i < 7; ++i)
 	{
 	    if (i == 0)
 		p = (char_u *)"<silent>";
@@ -4285,6 +4288,8 @@ ExpandMappings(
 #endif
 	    else if (i == 5)
 		p = (char_u *)"<nowait>";
+	    else if (i == 6)
+		p = (char_u *)"<special>";
 	    else
 		continue;
 
@@ -5036,7 +5041,7 @@ put_escstr(FILE *fd, char_u *strstart, int what)
 	 * interpreted as the start of a special key name.
 	 * A space in the lhs of a :map needs a CTRL-V.
 	 */
-	if (what == 2 && (vim_iswhite(c) || c == '"' || c == '\\'))
+	if (what == 2 && (VIM_ISWHITE(c) || c == '"' || c == '\\'))
 	{
 	    if (putc('\\', fd) < 0)
 		return FAIL;

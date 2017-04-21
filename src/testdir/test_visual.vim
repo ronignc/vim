@@ -3,6 +3,8 @@ if !has('visual')
   finish
 endif
 
+set belloff=all
+
 func Test_block_shift_multibyte()
   " Uses double-wide character.
   if !has('multi_byte')
@@ -36,3 +38,17 @@ func Test_Visual_ctrl_o()
   set tw&
   bw!
 endfu
+
+func Test_Visual_vapo()
+  new
+  normal oxx
+  normal vapo
+  bwipe!
+endfunc
+
+func Test_Visual_inner_quote()
+  new
+  normal oxX
+  normal vki'
+  bwipe!
+endfunc

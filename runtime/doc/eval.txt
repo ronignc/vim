@@ -1,4 +1,4 @@
-*eval.txt*	For Vim version 8.0.  Last change: 2017 Jan 28
+*eval.txt*	For Vim version 8.0.  Last change: 2017 Apr 09
 
 
 		  VIM REFERENCE MANUAL	  by Bram Moolenaar
@@ -1329,7 +1329,8 @@ b:changedtick	The total number of changes to the current buffer.  It is
 		    :	let my_changedtick = b:changedtick
 		    :	call My_Update()
 		    :endif
-<
+<		You cannot change or delete the b:changedtick variable.
+
 						*window-variable* *w:var* *w:*
 A variable name that is preceded with "w:" is local to the current window.  It
 is deleted when the window is closed.
@@ -1788,8 +1789,11 @@ v:progpath	Contains the command with which Vim was invoked, including the
 		|--remote-expr|.
 		To get the full path use: >
 			echo exepath(v:progpath)
-<		NOTE: This does not work when the command is a relative path
-		and the current directory has changed.
+<		If the path is relative it will be expanded to the full path,
+		so that it still works after `:cd`. Thus starting "./vim"
+		results in "/home/user/path/to/vim/src/vim".
+		On MS-Windows the executable may be called "vim.exe", but the
+		".exe" is not added to v:progpath.
 		Read-only.
 
 					*v:register* *register-variable*
@@ -1900,6 +1904,8 @@ v:termresponse	The escape sequence returned by the terminal for the |t_RV|
 
 					*v:testing* *testing-variable*
 v:testing	Must be set before using `test_garbagecollect_now()`.
+		Also, when set certain error messages won't be shown for 2
+		seconds. (e.g. "'dictionary' option is empty") 
 
 				*v:this_session* *this_session-variable*
 v:this_session	Full filename of the last loaded or saved session file.  See
@@ -1980,19 +1986,27 @@ argidx()			Number	current index in the argument list
 arglistid([{winnr} [, {tabnr}]]) Number	argument list id
 argv({nr})			String	{nr} entry of the argument list
 argv()				List	the argument list
-assert_equal({exp}, {act} [, {msg}])     none  assert {exp} is equal to {act}
-assert_exception({error} [, {msg}])      none  assert {error} is in v:exception
-assert_fails({cmd} [, {error}])          none  assert {cmd} fails
-assert_false({actual} [, {msg}])         none  assert {actual} is false
+assert_equal({exp}, {act} [, {msg}])
+				none	assert {exp} is equal to {act}
+assert_exception({error} [, {msg}])
+				none	assert {error} is in v:exception
+assert_fails({cmd} [, {error}])	none	assert {cmd} fails
+assert_false({actual} [, {msg}])
+				none	assert {actual} is false
 assert_inrange({lower}, {upper}, {actual} [, {msg}])
 				none	assert {actual} is inside the range
-assert_match({pat}, {text} [, {msg}])    none  assert {pat} matches {text}
-assert_notequal({exp}, {act} [, {msg}])  none  assert {exp} is not equal {act}
-assert_notmatch({pat}, {text} [, {msg}]) none  assert {pat} not matches {text}
-assert_true({actual} [, {msg}])          none  assert {actual} is true
+assert_match({pat}, {text} [, {msg}])
+				none	assert {pat} matches {text}
+assert_notequal({exp}, {act} [, {msg}])
+				none	assert {exp} is not equal {act}
+assert_notmatch({pat}, {text} [, {msg}])
+				none	assert {pat} not matches {text}
+assert_report({msg})		none	report a test failure
+assert_true({actual} [, {msg}])	none	assert {actual} is true
 asin({expr})			Float	arc sine of {expr}
 atan({expr})			Float	arc tangent of {expr}
 atan2({expr1}, {expr2})		Float	arc tangent of {expr1} / {expr2}
+balloon_show({msg})		none	show {msg} inside the balloon
 browse({save}, {title}, {initdir}, {default})
 				String	put up a file requester
 browsedir({title}, {initdir})	String	put up a directory requester
@@ -2247,13 +2261,16 @@ readfile({fname} [, {binary} [, {max}]])
 reltime([{start} [, {end}]])	List	get time value
 reltimefloat({time})		Float	turn the time value into a Float
 reltimestr({time})		String	turn time value into a String
-remote_expr({server}, {string} [, {idvar}])
+remote_expr({server}, {string} [, {idvar} [, {timeout}]])
 				String	send expression
 remote_foreground({server})	Number	bring Vim server to the foreground
 remote_peek({serverid} [, {retvar}])
 				Number	check for reply string
-remote_read({serverid})		String	read reply string
+remote_read({serverid} [, {timeout}])
+				String	read reply string
 remote_send({server}, {string} [, {idvar}])
+				String	send key sequence
+remote_startserver({name})	none	become server {name}
 				String	send key sequence
 remove({list}, {idx} [, {end}])	any	remove items {idx}-{end} from {list}
 remove({dict}, {key})		any	remove entry {key} from {dict}
@@ -2347,7 +2364,7 @@ systemlist({expr} [, {input}])	List	output of shell command/filter {expr}
 tabpagebuflist([{arg}])		List	list of buffer numbers in tab page
 tabpagenr([{arg}])		Number	number of current or last tab page
 tabpagewinnr({tabarg}[, {arg}]) Number	number of current window in tab page
-taglist({expr})			List	list of tags matching {expr}
+taglist({expr}[, {filename}])	List	list of tags matching {expr}
 tagfiles()			List	tags files used
 tan({expr})			Float	tangent of {expr}
 tanh({expr})			Float	hyperbolic tangent of {expr}
@@ -2355,14 +2372,15 @@ tempname()			String	name for a temporary file
 test_alloc_fail({id}, {countdown}, {repeat})
 				none	make memory allocation fail
 test_autochdir()		none	enable 'autochdir' during startup
-test_disable_char_avail({expr}) none	test without typeahead
 test_garbagecollect_now()	none	free memory right now for testing
+test_ignore_error({expr})	none	ignore a specific error
 test_null_channel()		Channel	null value for testing
 test_null_dict()		Dict	null value for testing
 test_null_job()			Job	null value for testing
 test_null_list()		List	null value for testing
 test_null_partial()		Funcref	null value for testing
 test_null_string()		String	null value for testing
+test_override({expr}, {val})    none	test with Vim internal overrides
 test_settime({expr})		none	set current time for testing
 timer_info([{id}])		List	information about timers
 timer_pause({id}, {pause})	none	pause or unpause a timer
@@ -2573,7 +2591,10 @@ assert_notmatch({pattern}, {actual} [, {msg}])
 		The opposite of `assert_match()`: add an error message to
 		|v:errors| when {pattern} matches {actual}.
 
-assert_true({actual} [, {msg}])					*assert_true()*
+assert_report({msg})					*assert_report()*
+		Report a test failure directly, using {msg}.
+
+assert_true({actual} [, {msg}])				*assert_true()*
 		When {actual} is not true an error message is added to
 		|v:errors|, like with |assert_equal()|.
 		A value is TRUE when it is a non-zero number.  When {actual}
@@ -2617,6 +2638,28 @@ atan2({expr1}, {expr2})					*atan2()*
 <			2.356194
 		{only available when compiled with the |+float| feature}
 
+balloon_show({msg})					*balloon_show()*
+		Show {msg} inside the balloon.
+		Example: >
+			func GetBalloonContent()
+			   " initiate getting the content
+			   return ''
+			endfunc
+			set balloonexpr=GetBalloonContent()
+
+			func BalloonCallback(result)
+			  call balloon_show(a:result)
+			endfunc
+<
+		The intended use is that fetching the content of the balloon
+		is initiated from 'balloonexpr'.  It will invoke an
+		asynchronous method, in which a callback invokes
+		balloon_show().  The 'balloonexpr' itself can return an
+		empty string or a placeholder.
+
+		When showing a balloon is not possible nothing happens, no
+		error message.
+		{only available when compiled with the +balloon_eval feature}
 
 							*browse()*
 browse({save}, {title}, {initdir}, {default})
@@ -2812,176 +2855,6 @@ ceil({expr})							*ceil()*
 <			4.0
 		{only available when compiled with the |+float| feature}
 
-changenr()						*changenr()*
-		Return the number of the most recent change.  This is the same
-		number as what is displayed with |:undolist| and can be used
-		with the |:undo| command.
-		When a change was made it is the number of that change.  After
-		redo it is the number of the redone change.  After undo it is
-		one less than the number of the undone change.
-
-char2nr({expr}[, {utf8}])					*char2nr()*
-		Return number value of the first char in {expr}.  Examples: >
-			char2nr(" ")		returns 32
-			char2nr("ABC")		returns 65
-<		When {utf8} is omitted or zero, the current 'encoding' is used.
-		Example for "utf-8": >
-			char2nr("á")		returns 225
-			char2nr("á"[0])		returns 195
-<		With {utf8} set to 1, always treat as utf-8 characters.
-		A combining character is a separate character.
-		|nr2char()| does the opposite.
-
-cindent({lnum})						*cindent()*
-		Get the amount of indent for line {lnum} according the C
-		indenting rules, as with 'cindent'.
-		The indent is counted in spaces, the value of 'tabstop' is
-		relevant.  {lnum} is used just like in |getline()|.
-		When {lnum} is invalid or Vim was not compiled the |+cindent|
-		feature, -1 is returned.
-		See |C-indenting|.
-
-clearmatches()						*clearmatches()*
-		Clears all matches previously defined by |matchadd()| and the
-		|:match| commands.
-
-							*col()*
-col({expr})	The result is a Number, which is the byte index of the column
-		position given with {expr}.  The accepted positions are:
-		    .	    the cursor position
-		    $	    the end of the cursor line (the result is the
-			    number of bytes in the cursor line plus one)
-		    'x	    position of mark x (if the mark is not set, 0 is
-			    returned)
-		    v       In Visual mode: the start of the Visual area (the
-			    cursor is the end).  When not in Visual mode
-			    returns the cursor position.  Differs from |'<| in
-			    that it's updated right away.
-		Additionally {expr} can be [lnum, col]: a |List| with the line
-		and column number. Most useful when the column is "$", to get
-		the last column of a specific line.  When "lnum" or "col" is
-		out of range then col() returns zero.
-		To get the line number use |line()|.  To get both use
-		|getpos()|.
-		For the screen column position use |virtcol()|.
-		Note that only marks in the current file can be used.
-		Examples: >
-			col(".")		column of cursor
-			col("$")		length of cursor line plus one
-			col("'t")		column of mark t
-			col("'" . markname)	column of mark markname
-<		The first column is 1.  0 is returned for an error.
-		For an uppercase mark the column may actually be in another
-		buffer.
-		For the cursor position, when 'virtualedit' is active, the
-		column is one higher if the cursor is after the end of the
-		line.  This can be used to obtain the column in Insert mode: >
-			:imap <F2> <C-O>:let save_ve = &ve<CR>
-				\<C-O>:set ve=all<CR>
-				\<C-O>:echo col(".") . "\n" <Bar>
-				\let &ve = save_ve<CR>
-<
-
-complete({startcol}, {matches})			*complete()* *E785*
-		Set the matches for Insert mode completion.
-		Can only be used in Insert mode.  You need to use a mapping
-		with CTRL-R = (see |i_CTRL-R|).  It does not work after CTRL-O
-		or with an expression mapping.
-		{startcol} is the byte offset in the line where the completed
-		text start.  The text up to the cursor is the original text
-		that will be replaced by the matches.  Use col('.') for an
-		empty string.  "col('.') - 1" will replace one character by a
-		match.
-		{matches} must be a |List|.  Each |List| item is one match.
-		See |complete-items| for the kind of items that are possible.
-		Note that the after calling this function you need to avoid
-		inserting anything that would cause completion to stop.
-		The match can be selected with CTRL-N and CTRL-P as usual with
-		Insert mode completion.  The popup menu will appear if
-		specified, see |ins-completion-menu|.
-		Example: >
-	inoremap <F5> <C-R>=ListMonths()<CR>
-
-	func! ListMonths()
-	  call complete(col('.'), ['January', 'February', 'March',
-		\ 'April', 'May', 'June', 'July', 'August', 'September',
-		\ 'October', 'November', 'December'])
-	  return ''
-	endfunc
-<		This isn't very useful, but it shows how it works.  Note that
-		an empty string is returned to avoid a zero being inserted.
-
-complete_add({expr})				*complete_add()*
-		Add {expr} to the list of matches.  Only to be used by the
-		function specified with the 'completefunc' option.
-		Returns 0 for failure (empty string or out of memory),
-		1 when the match was added, 2 when the match was already in
-		the list.
-		See |complete-functions| for an explanation of {expr}.  It is
-		the same as one item in the list that 'omnifunc' would return.
-
-complete_check()				*complete_check()*
-		Check for a key typed while looking for completion matches.
-		This is to be used when looking for matches takes some time.
-		Returns |TRUE| when searching for matches is to be aborted,
-		zero otherwise.
-		Only to be used by the function specified with the
-		'completefunc' option.
-
-						*confirm()*
-confirm({msg} [, {choices} [, {default} [, {type}]]])
-		Confirm() offers the user a dialog, from which a choice can be
-		made.  It returns the number of the choice.  For the first
-		choice this is 1.
-		Note: confirm() is only supported when compiled with dialog
-		support, see |+dialog_con| and |+dialog_gui|.
-
-		{msg} is displayed in a |dialog| with {choices} as the
-		alternatives.  When {choices} is missing or empty, "&OK" is
-		used (and translated).
-		{msg} is a String, use '\n' to include a newline.  Only on
-		some systems the string is wrapped when it doesn't fit.
-
-		{choices} is a String, with the individual choices separated
-		by '\n', e.g. >
-			confirm("Save changes?", "&Yes\n&No\n&Cancel")
-<		The letter after the '&' is the shortcut key for that choice.
-		Thus you can type 'c' to select "Cancel".  The shortcut does
-		not need to be the first letter: >
-			confirm("file has been modified", "&Save\nSave &All")
-<		For the console, the first letter of each choice is used as
-		the default shortcut key.
-
-		The optional {default} argument is the number of the choice
-		that is made if the user hits <CR>.  Use 1 to make the first
-		choice the default one.  Use 0 to not set a default.  If
-		{default} is omitted, 1 is used.
-
-		The optional {type} argument gives the type of dialog.  This
-		is only used for the icon of the GTK, Mac, Motif and Win32
-		GUI.  It can be one of these values: "Error", "Question",
-		"Info", "Warning" or "Generic".  Only the first character is
-		relevant.  When {type} is omitted, "Generic" is used.
-
-		If the user aborts the dialog by pressing <Esc>, CTRL-C,
-		or another valid interrupt key, confirm() returns 0.
-
-		An example: >
-   :let choice = confirm("What do you want?", "&Apples\n&Oranges\n&Bananas", 2)
-   :if choice == 0
-   :	echo "make up your mind!"
-   :elseif choice == 3
-   :	echo "tasteful"
-   :else
-   :	echo "I prefer bananas myself."
-   :endif
-<		In a GUI dialog, buttons are used.  The layout of the buttons
-		depends on the 'v' flag in 'guioptions'.  If it is included,
-		the buttons are always put vertically.  Otherwise,  confirm()
-		tries to put the buttons in one horizontal line.  If they
-		don't fit, a vertical layout is used anyway.  For some systems
-		the horizontal layout is always used.
-
 ch_canread({handle})						*ch_canread()*
 		Return non-zero when there is something to read from {handle}.
 		{handle} can be a Channel or a Job that has a Channel.
@@ -3171,6 +3044,176 @@ ch_status({handle} [, {options}])				*ch_status()*
 		"err".  For example, to get the error status: >
 			ch_status(job, {"part": "err"})
 <
+changenr()						*changenr()*
+		Return the number of the most recent change.  This is the same
+		number as what is displayed with |:undolist| and can be used
+		with the |:undo| command.
+		When a change was made it is the number of that change.  After
+		redo it is the number of the redone change.  After undo it is
+		one less than the number of the undone change.
+
+char2nr({expr}[, {utf8}])					*char2nr()*
+		Return number value of the first char in {expr}.  Examples: >
+			char2nr(" ")		returns 32
+			char2nr("ABC")		returns 65
+<		When {utf8} is omitted or zero, the current 'encoding' is used.
+		Example for "utf-8": >
+			char2nr("á")		returns 225
+			char2nr("á"[0])		returns 195
+<		With {utf8} set to 1, always treat as utf-8 characters.
+		A combining character is a separate character.
+		|nr2char()| does the opposite.
+
+cindent({lnum})						*cindent()*
+		Get the amount of indent for line {lnum} according the C
+		indenting rules, as with 'cindent'.
+		The indent is counted in spaces, the value of 'tabstop' is
+		relevant.  {lnum} is used just like in |getline()|.
+		When {lnum} is invalid or Vim was not compiled the |+cindent|
+		feature, -1 is returned.
+		See |C-indenting|.
+
+clearmatches()						*clearmatches()*
+		Clears all matches previously defined by |matchadd()| and the
+		|:match| commands.
+
+							*col()*
+col({expr})	The result is a Number, which is the byte index of the column
+		position given with {expr}.  The accepted positions are:
+		    .	    the cursor position
+		    $	    the end of the cursor line (the result is the
+			    number of bytes in the cursor line plus one)
+		    'x	    position of mark x (if the mark is not set, 0 is
+			    returned)
+		    v       In Visual mode: the start of the Visual area (the
+			    cursor is the end).  When not in Visual mode
+			    returns the cursor position.  Differs from |'<| in
+			    that it's updated right away.
+		Additionally {expr} can be [lnum, col]: a |List| with the line
+		and column number. Most useful when the column is "$", to get
+		the last column of a specific line.  When "lnum" or "col" is
+		out of range then col() returns zero.
+		To get the line number use |line()|.  To get both use
+		|getpos()|.
+		For the screen column position use |virtcol()|.
+		Note that only marks in the current file can be used.
+		Examples: >
+			col(".")		column of cursor
+			col("$")		length of cursor line plus one
+			col("'t")		column of mark t
+			col("'" . markname)	column of mark markname
+<		The first column is 1.  0 is returned for an error.
+		For an uppercase mark the column may actually be in another
+		buffer.
+		For the cursor position, when 'virtualedit' is active, the
+		column is one higher if the cursor is after the end of the
+		line.  This can be used to obtain the column in Insert mode: >
+			:imap <F2> <C-O>:let save_ve = &ve<CR>
+				\<C-O>:set ve=all<CR>
+				\<C-O>:echo col(".") . "\n" <Bar>
+				\let &ve = save_ve<CR>
+<
+
+complete({startcol}, {matches})			*complete()* *E785*
+		Set the matches for Insert mode completion.
+		Can only be used in Insert mode.  You need to use a mapping
+		with CTRL-R = (see |i_CTRL-R|).  It does not work after CTRL-O
+		or with an expression mapping.
+		{startcol} is the byte offset in the line where the completed
+		text start.  The text up to the cursor is the original text
+		that will be replaced by the matches.  Use col('.') for an
+		empty string.  "col('.') - 1" will replace one character by a
+		match.
+		{matches} must be a |List|.  Each |List| item is one match.
+		See |complete-items| for the kind of items that are possible.
+		Note that the after calling this function you need to avoid
+		inserting anything that would cause completion to stop.
+		The match can be selected with CTRL-N and CTRL-P as usual with
+		Insert mode completion.  The popup menu will appear if
+		specified, see |ins-completion-menu|.
+		Example: >
+	inoremap <F5> <C-R>=ListMonths()<CR>
+
+	func! ListMonths()
+	  call complete(col('.'), ['January', 'February', 'March',
+		\ 'April', 'May', 'June', 'July', 'August', 'September',
+		\ 'October', 'November', 'December'])
+	  return ''
+	endfunc
+<		This isn't very useful, but it shows how it works.  Note that
+		an empty string is returned to avoid a zero being inserted.
+
+complete_add({expr})				*complete_add()*
+		Add {expr} to the list of matches.  Only to be used by the
+		function specified with the 'completefunc' option.
+		Returns 0 for failure (empty string or out of memory),
+		1 when the match was added, 2 when the match was already in
+		the list.
+		See |complete-functions| for an explanation of {expr}.  It is
+		the same as one item in the list that 'omnifunc' would return.
+
+complete_check()				*complete_check()*
+		Check for a key typed while looking for completion matches.
+		This is to be used when looking for matches takes some time.
+		Returns |TRUE| when searching for matches is to be aborted,
+		zero otherwise.
+		Only to be used by the function specified with the
+		'completefunc' option.
+
+						*confirm()*
+confirm({msg} [, {choices} [, {default} [, {type}]]])
+		Confirm() offers the user a dialog, from which a choice can be
+		made.  It returns the number of the choice.  For the first
+		choice this is 1.
+		Note: confirm() is only supported when compiled with dialog
+		support, see |+dialog_con| and |+dialog_gui|.
+
+		{msg} is displayed in a |dialog| with {choices} as the
+		alternatives.  When {choices} is missing or empty, "&OK" is
+		used (and translated).
+		{msg} is a String, use '\n' to include a newline.  Only on
+		some systems the string is wrapped when it doesn't fit.
+
+		{choices} is a String, with the individual choices separated
+		by '\n', e.g. >
+			confirm("Save changes?", "&Yes\n&No\n&Cancel")
+<		The letter after the '&' is the shortcut key for that choice.
+		Thus you can type 'c' to select "Cancel".  The shortcut does
+		not need to be the first letter: >
+			confirm("file has been modified", "&Save\nSave &All")
+<		For the console, the first letter of each choice is used as
+		the default shortcut key.
+
+		The optional {default} argument is the number of the choice
+		that is made if the user hits <CR>.  Use 1 to make the first
+		choice the default one.  Use 0 to not set a default.  If
+		{default} is omitted, 1 is used.
+
+		The optional {type} argument gives the type of dialog.  This
+		is only used for the icon of the GTK, Mac, Motif and Win32
+		GUI.  It can be one of these values: "Error", "Question",
+		"Info", "Warning" or "Generic".  Only the first character is
+		relevant.  When {type} is omitted, "Generic" is used.
+
+		If the user aborts the dialog by pressing <Esc>, CTRL-C,
+		or another valid interrupt key, confirm() returns 0.
+
+		An example: >
+   :let choice = confirm("What do you want?", "&Apples\n&Oranges\n&Bananas", 2)
+   :if choice == 0
+   :	echo "make up your mind!"
+   :elseif choice == 3
+   :	echo "tasteful"
+   :else
+   :	echo "I prefer bananas myself."
+   :endif
+<		In a GUI dialog, buttons are used.  The layout of the buttons
+		depends on the 'v' flag in 'guioptions'.  If it is included,
+		the buttons are always put vertically.  Otherwise,  confirm()
+		tries to put the buttons in one horizontal line.  If they
+		don't fit, a vertical layout is used anyway.  For some systems
+		the horizontal layout is always used.
+
 							*copy()*
 copy({expr})	Make a copy of {expr}.  For Numbers and Strings this isn't
 		different from using {expr} directly.
@@ -3427,7 +3470,7 @@ execute({command} [, {silent}])					*execute()*
 			""		no `:silent` used
 			"silent"	`:silent` used
 			"silent!"	`:silent!` used
-		The default is 'silent'.  Note that with "silent!", unlike
+		The default is "silent".  Note that with "silent!", unlike
 		`:redir`, error messages are dropped.  When using an external
 		command the screen may be messed up, use `system()` instead.
 							*E930*
@@ -3893,11 +3936,14 @@ foldtext()	Returns a String, to be displayed for a closed fold.  This is
 		|v:foldstart|, |v:foldend| and |v:folddashes| variables.
 		The returned string looks like this: >
 			+-- 45 lines: abcdef
-<		The number of dashes depends on the foldlevel.  The "45" is
-		the number of lines in the fold.  "abcdef" is the text in the
-		first non-blank line of the fold.  Leading white space, "//"
-		or "/*" and the text from the 'foldmarker' and 'commentstring'
-		options is removed.
+<		The number of leading dashes depends on the foldlevel.  The
+		"45" is the number of lines in the fold.  "abcdef" is the text
+		in the first non-blank line of the fold.  Leading white space,
+		"//" or "/*" and the text from the 'foldmarker' and
+		'commentstring' options is removed.
+		When used to draw the actual foldtext, the rest of the line
+		will be filled with the fold char from the 'fillchars'
+		setting.
 		{not available when compiled without the |+folding| feature}
 
 foldtextresult({lnum})					*foldtextresult()*
@@ -4029,10 +4075,10 @@ get({dict}, {key} [, {default}])
 get({func}, {what})
 		Get an item with from Funcref {func}.  Possible values for
 		{what} are:
-			'name'	The function name
-			'func'	The function
-			'dict'	The dictionary
-			'args'	The list with arguments
+			"name"	The function name
+			"func"	The function
+			"dict"	The dictionary
+			"args"	The list with arguments
 
 							*getbufinfo()*
 getbufinfo([{expr}])
@@ -4333,12 +4379,14 @@ getcurpos()	Get the position of the cursor.  This is like getpos('.'), but
 		includes an extra item in the list:
 		    [bufnum, lnum, col, off, curswant] ~
 		The "curswant" number is the preferred column when moving the
-		cursor vertically.
+		cursor vertically.  Also see |getpos()|.
+
 		This can be used to save and restore the cursor position: >
 			let save_cursor = getcurpos()
 			MoveTheCursorAround
 			call setpos('.', save_cursor)
-<
+<		Note that this only works within the window.  See
+		|winrestview()| for restoring more state.
 							*getcwd()*
 getcwd([{winnr} [, {tabnr}]])
 		The result is a String, which is the name of the current
@@ -4371,8 +4419,8 @@ getfontname([{name}])					*getfontname()*
 		Only works when the GUI is running, thus not in your vimrc or
 		gvimrc file.  Use the |GUIEnter| autocommand to use this
 		function just after the GUI has started.
-		Note that the GTK 2 GUI accepts any font name, thus checking
-		for a valid name does not work.
+		Note that the GTK GUI accepts any font name, thus checking for
+		a valid name does not work.
 
 getfperm({fname})					*getfperm()*
 		The result is a String, which is the read, write, and execute
@@ -4636,13 +4684,16 @@ gettabwinvar({tabnr}, {winnr}, {varname} [, {def}])		*gettabwinvar()*
 <
 							*getwinposx()*
 getwinposx()	The result is a Number, which is the X coordinate in pixels of
-		the left hand side of the GUI Vim window.  The result will be
-		-1 if the information is not available.
+		the left hand side of the GUI Vim window. Also works for an
+		xterm.
+		The result will be -1 if the information is not available.
+		The value can be used with `:winpos`.
 
 							*getwinposy()*
 getwinposy()	The result is a Number, which is the Y coordinate in pixels of
-		the top of the GUI Vim window.  The result will be -1 if the
-		information is not available.
+		the top of the GUI Vim window.  Also works for an xterm.
+		The result will be -1 if the information is not available.
+		The value can be used with `:winpos`.
 
 getwininfo([{winid}])					*getwininfo()*
 		Returns information about windows as a List with Dictionaries.
@@ -5258,13 +5309,29 @@ json_decode({string})					*json_decode()*
 		in Vim values.  See |json_encode()| for the relation between
 		JSON and Vim values.
 		The decoding is permissive:
-		- A trailing comma in an array and object is ignored.
+		- A trailing comma in an array and object is ignored, e.g.
+		  "[1, 2, ]" is the same as "[1, 2]".
 		- More floating point numbers are recognized, e.g. "1." for
-		  "1.0".
-		However, a duplicate key in an object is not allowed. *E938*
-		The result must be a valid Vim type:
-		- An empty object member name is not allowed.
-		- Duplicate object member names are not allowed.
+		  "1.0", or "001.2" for "1.2". Special floating point values
+		  "Infinity" and "NaN" (capitalization ignored) are accepted.
+		- Leading zeroes in integer numbers are ignored, e.g. "012"
+		  for "12" or "-012" for "-12".
+		- Capitalization is ignored in literal names null, true or
+		  false, e.g. "NULL" for "null", "True" for "true".
+		- Control characters U+0000 through U+001F which are not
+		  escaped in strings are accepted, e.g. "	" (tab
+		  character in string) for "\t".
+		- Backslash in an invalid 2-character sequence escape is
+		  ignored, e.g. "\a" is decoded as "a".
+		- A correct surrogate pair in JSON strings should normally be
+		  a 12 character sequence such as "\uD834\uDD1E", but
+		  json_decode() silently accepts truncated surrogate pairs
+		  such as "\uD834" or "\uD834\u"
+								*E938*
+		A duplicate key in an object, valid in rfc7159, is not
+		accepted by json_decode() as the result must be a valid Vim
+		type, e.g. this fails: {"a":"b", "a":"c"}
+
 
 json_encode({expr})					*json_encode()*
 		Encode {expr} as JSON and return this as a string.
@@ -5367,8 +5434,10 @@ line({expr})	The result is a Number, which is the line number of the file
 		    $	    the last line in the current buffer
 		    'x	    position of mark x (if the mark is not set, 0 is
 			    returned)
-		    w0	    first line visible in current window
-		    w$	    last line visible in current window
+		    w0	    first line visible in current window (one if the
+			    display isn't updated, e.g. in silent Ex mode)
+		    w$	    last line visible in current window (this is one
+			    less than "w0" if no lines are visible)
 		    v	    In Visual mode: the start of the Visual area (the
 			    cursor is the end).  When not in Visual mode
 			    returns the cursor position.  Differs from |'<| in
@@ -5978,7 +6047,7 @@ printf({fmt}, {expr1} ...)				*printf()*
 		  %e	floating point number as 1.23e3, inf, -inf or nan
 		  %E	floating point number as 1.23E3, INF, -INF or NAN
 		  %g	floating point number, as %f or %e depending on value
-		  %G	floating point number, as %f or %E depending on value
+		  %G	floating point number, as %F or %E depending on value
 		  %%	the % character itself
 
 		Conversion specifications start with '%' and end with the
@@ -6275,15 +6344,17 @@ reltimestr({time})				*reltimestr()*
 		{only available when compiled with the |+reltime| feature}
 
 							*remote_expr()* *E449*
-remote_expr({server}, {string} [, {idvar}])
+remote_expr({server}, {string} [, {idvar} [, {timeout}]])
 		Send the {string} to {server}.  The string is sent as an
 		expression and the result is returned after evaluation.
 		The result must be a String or a |List|.  A |List| is turned
 		into a String by joining the items with a line break in
 		between (not at the end), like with join(expr, "\n").
-		If {idvar} is present, it is taken as the name of a
-		variable and a {serverid} for later use with
+		If {idvar} is present and not empty, it is taken as the name
+		of a variable and a {serverid} for later use with
 		remote_read() is stored there.
+		If {timeout} is given the read times out after this many
+		seconds.  Otherwise a timeout of 600 seconds is used.
 		See also |clientserver| |RemoteReply|.
 		This function is not available in the |sandbox|.
 		{only available when compiled with the |+clientserver| feature}
@@ -6322,9 +6393,10 @@ remote_peek({serverid} [, {retvar}])		*remote_peek()*
 			:let repl = ""
 			:echo "PEEK: ".remote_peek(id, "repl").": ".repl
 
-remote_read({serverid})				*remote_read()*
+remote_read({serverid}, [{timeout}])			*remote_read()*
 		Return the oldest available reply from {serverid} and consume
-		it.  It blocks until a reply is available.
+		it.  Unless a {timeout} in seconds is given, it blocks until a
+		reply is available.
 		See also |clientserver|.
 		This function is not available in the |sandbox|.
 		{only available when compiled with the |+clientserver| feature}
@@ -6342,6 +6414,7 @@ remote_send({server}, {string} [, {idvar}])
 		See also |clientserver| |RemoteReply|.
 		This function is not available in the |sandbox|.
 		{only available when compiled with the |+clientserver| feature}
+
 		Note: Any errors will be reported in the server and may mess
 		up the display.
 		Examples: >
@@ -6353,6 +6426,12 @@ remote_send({server}, {string} [, {idvar}])
 		:echo remote_send("gvim", ":sleep 10 | echo ".
 		 \ 'server2client(expand("<client>"), "HELLO")<CR>')
 <
+					*remote_startserver()* *E941* *E942*
+remote_startserver({name})
+		Become the server {name}.  This fails if already running as a
+		server, when |v:servername| is not empty.
+		{only available when compiled with the |+clientserver| feature}
+
 remove({list}, {idx} [, {end}])				*remove()*
 		Without {end}: Remove the item at {idx} from |List| {list} and
 		return the item.
@@ -6880,16 +6959,19 @@ setqflist({list} [, {action}[, {what}]])		*setqflist()*
 		Note that the list is not exactly the same as what
 		|getqflist()| returns.
 
-							*E927*
-		If {action} is set to 'a', then the items from {list} are
-		added to the existing quickfix list. If there is no existing
-		list, then a new list is created.
+		{action} values:				*E927*
+		'a'	The items from {list} are added to the existing
+			quickfix list. If there is no existing list, then a
+			new list is created.
 		
-		If {action} is set to 'r', then the items from the current
-		quickfix list are replaced with the items from {list}.  This
-		can also be used to clear the list: >
-			:call setqflist([], 'r')
+		'r'	The items from the current quickfix list are replaced
+			with the items from {list}.  This can also be used to
+			clear the list: >
+				:call setqflist([], 'r')
 <	
+		'f'	All the quickfix lists in the quickfix stack are
+			freed.
+
 		If {action} is not present or is set to ' ', then a new list
 		is created.
 
@@ -7686,8 +7768,13 @@ tagfiles()	Returns a |List| with the file names used to search for tags
 		for the current buffer.  This is the 'tags' option expanded.
 
 
-taglist({expr})							*taglist()*
+taglist({expr}[, {filename}])				*taglist()*
 		Returns a list of tags matching the regular expression {expr}.
+
+		If {filename} is passed it is used to prioritize the results
+		in the same way that |:tselect| does. See |tag-priority|.
+		{filename} should be the full path of the file.
+
 		Each list item is a dictionary with at least the following
 		entries:
 			name		Name of the tag.
@@ -7710,7 +7797,7 @@ taglist({expr})							*taglist()*
 		may appear, they give the name of the entity the tag is
 		contained in.
 
-		The ex-command 'cmd' can be either an ex search pattern, a
+		The ex-command "cmd" can be either an ex search pattern, a
 		line number or a line number followed by a byte number.
 
 		If there are no matching tags, then an empty list is returned.
@@ -7769,19 +7856,20 @@ test_autochdir()					*test_autochdir()*
 		Set a flag to enable the effect of 'autochdir' before Vim
 		startup has finished.
 
-						*test_disable_char_avail()*
-test_disable_char_avail({expr})
-		When {expr} is 1 the internal char_avail() function will
-		return |FALSE|.  When {expr} is 0 the char_avail() function will
-		function normally.
-		Only use this for a test where typeahead causes the test not
-		to work.  E.g., to trigger the CursorMovedI autocommand event.
-
 test_garbagecollect_now()			 *test_garbagecollect_now()*
 		Like garbagecollect(), but executed right away.  This must
 		only be called directly to avoid any structure to exist
 		internally, and |v:testing| must have been set before calling
 		any function.
+
+test_ignore_error({expr})			 *test_ignore_error()*
+		Ignore any error containing {expr}.  A normal message is given
+		instead.
+		This is only meant to be used in tests, where catching the
+		error with try/catch cannot be used (because it skips over
+		following code).
+		{expr} is used literally, not as a pattern.
+		There is currently no way to revert this.
 
 test_null_channel()					*test_null_channel()*
 		Return a Channel that is null. Only useful for testing.
@@ -7803,10 +7891,24 @@ test_null_partial()					*test_null_partial()*
 test_null_string()					*test_null_string()*
 		Return a String that is null. Only useful for testing.
 
+test_override({name}, {val})				*test_override()*
+		Overrides certain parts of Vims internal processing to be able
+		to run tests. Only to be used for testing Vim!
+		The override is enabled when {val} is non-zero and removed
+		when {val} is zero.
+		Current supported values for name are: 
+
+		name	     effect when {val} is non-zero ~
+		redraw       disable the redrawing() function
+		char_avail   disable the char_avail() function
+		ALL	     clear all overrides ({val} is not used)
+
 test_settime({expr})					*test_settime()*
 		Set the time Vim uses internally.  Currently only used for
 		timestamps in the history, as they are used in viminfo, and
 		for undo.
+		Using a value of 1 makes Vim not sleep after a warning or
+		error message.
 		{expr} must evaluate to a number.  When the value is zero the
 		normal behavior is restored.
 
@@ -8391,7 +8493,7 @@ listcmds		Compiled with commands for the buffer list |:files|
 			and the argument list |arglist|.
 localmap		Compiled with local mappings and abbr. |:map-local|
 lua			Compiled with Lua interface |Lua|.
-mac			Any Macintosh version of Vim.
+mac			Any Macintosh version of Vim, but not all OS X.
 macunix			Compiled for OS X, with darwin
 osx			Compiled for OS X, with or without darwin
 menu			Compiled with support for |:menu|.
@@ -8463,6 +8565,7 @@ toolbar			Compiled with support for |gui-toolbar|.
 ttyin			input is a terminal (tty)
 ttyout			output is a terminal (tty)
 unix			Unix version of Vim.
+unnamedplus		Compiled with support for "unnamedplus" in 'clipboard'
 user_commands		User-defined commands.
 vertsplit		Compiled with vertically split windows |:vsplit|.
 vim_starting		True while initial source'ing takes place. |startup|
@@ -8966,6 +9069,11 @@ This does NOT work: >
 			value and the global value are changed.
 			Example: >
 				:let &path = &path . ',/usr/local/include'
+<			This also works for terminal codes in the form t_xx.
+			But only for alphanumerical names.  Example: >
+				:let &t_k1 = "\<Esc>[234;"
+<			When the code does not exist yet it will be created as
+			a terminal key code, there is no error.
 
 :let &{option-name} .= {expr1}
 			For a string option: Append {expr1} to the value.
@@ -9073,9 +9181,12 @@ This does NOT work: >
 				:lockvar v
 				:let v = 'asdf'		" fails!
 				:unlet v
-<							*E741*
+<							*E741* *E940*
 			If you try to change a locked variable you get an
-			error message: "E741: Value is locked: {name}"
+			error message: "E741: Value is locked: {name}".
+			If you try to lock or unlock a built-in variable you
+			get an error message: "E940: Cannot lock or unlock
+			variable {name}".
 
 			[depth] is relevant when locking a |List| or
 			|Dictionary|.  It specifies how deep the locking goes:
@@ -10558,6 +10669,22 @@ missing: >
 	:else
 	:  echo "You will _never_ see this message"
 	:endif
+
+To execute a command only when the |+eval| feature is disabled requires a trick,
+as this example shows: >
+	if 1
+	  nnoremap : :"
+	endif
+	normal :set history=111<CR>
+	if 1
+	  nunmap :
+	endif
+
+The "<CR>" here is a real CR character, type CTRL-V Enter to get it.
+
+When the |+eval| feature is available the ":" is remapped to add a double
+quote, which has the effect of commenging-out the command.  without the
+|+eval| feature the nnoremap command is skipped and the command is executed.
 
 ==============================================================================
 11. The sandbox					*eval-sandbox* *sandbox* *E48*

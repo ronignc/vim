@@ -1,4 +1,4 @@
-*todo.txt*      For Vim version 8.0.  Last change: 2017 Jan 28
+*todo.txt*      For Vim version 8.0.  Last change: 2017 Apr 09
 
 
 		  VIM REFERENCE MANUAL	  by Bram Moolenaar
@@ -34,6 +34,8 @@ entered there will not be repeated below, unless there is extra information.
 
 							*known-bugs*
 -------------------- Known bugs and current work -----------------------
+
+Remove the Farsi code?
 
 +channel:
 - Try out background make plugin: 
@@ -105,25 +107,21 @@ Regexp problems:
 - Difference between two engines: ".*\zs\/\@>\/" on text "///"
   (Chris Paul, 2016 Nov 13)  New engine not greedy enough?
 
-'] mark invalid after undoing insert "hello".
+Running test_gui and test_gui_init with Motif sometimes kills the window
+manager.  Problem with Motif?
 
-When using symbolic links, a package path will not be inserted at the right
-position in 'runtimepath'. (Dugan Chen, 2016 Nov 18)
+Memory leak in test97?  The string is actually freed.  Weird.
+
+Add a toolbar in the terminal.  Can be global, above all windows, or specific
+for one window.
+Use tb_set(winid, [{'text': 'stop', 'cb': callback, 'hi': 'Green'}])
+    tb_highlight(winid, 'ToolBar')
+    tb_get(winid)
 
 json_encode(): should convert to utf-8. (Nikolai Pavlov, 2016 Jan 23)
 What if there is an invalid character?
 
-Allow using json with empty key?  Dict already has it.
-
 Json string with trailing \u should be an error. (Lcd)
-
-Multi-byte bug: dv} splits char. (Urtica Dioica, 2017 Jan 9)
-
-Patch: Make mode() return "ix" or "Rx" when in completion mode.
-(Yegappan Lakshmanan, 2017 Jan 19, #1397, update Jan 22)
-
-With Visual selection of a multi-byte character the '] mark is on the last
-byte, should be first byte?
 
 When session file has name in argument list but the buffer was deleted, the
 buffer is not deleted when using the session file. (#1393)
@@ -136,28 +134,24 @@ Wrong diff highlighting with three files. (2016 Oct 20, #1186)
 Also get E749 on exit.
 Another example in #1309
 
-Completion for user-defined commands does not work if a few chararacters were
-already typed. (Dominique, 2017 Jan 26)
+Patch to change all use of &sw to shiftwidth(). (Tyru, 2017 Feb 19)
+Wait until maintainers integrate it.
 
 When deleting a mark or register, leave a tombstone, so that it's also deleted
 when writing viminfo (and the delete was the most recent action). #1339
-
-Relevant neovim patch:
-https://github.com/neovim/neovim/pull/5737#issuecomment-266055165
-
-Patch for better explanation of 'compatible' side effects.
-https://github.com/vim/vim/pull/1161/files
-
-Patch to add 'makeencoding', useful when the system encoding differs from
-Vim's 'encoding' setting. (Ken Takata, 2017 Jan 6)
-
-Patch to adjust marks when adding a new line to the end of buffer in diff
-mode. (James McCoy, 2016 Dec 14, #1329)
 
 Suggestion to improve pt-br spell checking. (Marcelo D Montu, 2016 Dec 15,
 #1330)
 
 Error in test_startup_utf8 on Solaris. (Danek Duvall, 2016 Aug 17)
+
+Completion for :!cmd shows each match twice. #1435
+
+GTK: When adding a timer from 'balloonexpr' it won't fire, because
+g_main_context_iteration() doesn't return.  Need to trigger an event when the
+timer expires.
+
+Screen update bug related to matchparen.  (Chris Heath, 2017 Mar 4, #1532)
 
 Rule to use "^" for statusline does not work if a space is defined with
 highlighting for both stl and stlnc.  Patch by Ken Hamada (itchyny, 2016 Dec 11)
@@ -165,11 +159,30 @@ highlighting for both stl and stlnc.  Patch by Ken Hamada (itchyny, 2016 Dec 11)
 8   "stl" and "stlnc" in 'fillchars' don't work for multi-byte characters.
     Patch by Christian Wellenbrock, 2013 Jul 5.
 
+Using CTRL-G_U in InsertCharPre causes trouble for redo. (Israel Chauca
+Fuentes, 2017 Feb 12, #1470)
+
+Check for errors E704 and E705 only does VAR_FUNC, should also do VAR_PARTIAL.
+(Nikolai Pavlov, 2017 Mar 13, #1557)
+Make a function to check for function-like type?
+
 Screen updated delayed when using CTRL-O u in Insert mode.
 (Barlik, #1191)  Perhaps because status message?
 
-Patch to add buffer name argument to taglist().
-Ordering of tags in result of taglist call. (Duncan McDougall, #1194)
+Implement optional arguments for functions.
+    func Foo(start, count = 1 all = 1)
+    call Foo(12)
+    call Foo(12, all = 0)
+    call Foo(12, 15, 0)
+
+writefile() does not abort as soon as an error is found. (Nikolai Pavlov,
+2017 Feb 14, #1476)
+
+Patch to support on-the-spot and over-the-spot input method. (Ken Takata, 2017
+Feb 14).
+
+Add a command to take a range of lines, filter them and put the output
+somewhere else.  :{range}copy {dest} !cmd
 
 Patch to fix that empty first tab is not in session.
 (Hirohito Higashi, 2016 Nov 25, #1282)
@@ -184,6 +197,9 @@ The TermResponse event is not triggered when a plugin has set 'eventignore' to
 "all".  Netrw does this. (Gary Johnson, 2017 Jan 24)
 Postpone the event until 'eventignore' is reset.
 
+Patch to make urxvt mouse work better, recognize Esc[*M termcap code.
+(Maurice Bos, 2017 Feb 17, #1486)
+
 Once .exe with updated installer is available: Add remark to download page
 about /S and /D options (Ken Takata, 2016 Apr 13)
 Or point to nightly builds: https://github.com/vim/vim-win32-installer/releases
@@ -191,8 +207,19 @@ Or point to nightly builds: https://github.com/vim/vim-win32-installer/releases
 Problem passing non-UTF-8 strings to Python 3. (Björn Linse, 2016 Sep 11,
 #1053)  With patch, does it work?
 
+Using --remote to open a file in which a # appears does not work on
+MS-Windows.  Perhaps in \#  the \ is seen as a path separator. (Axel Bender,
+2017 Feb 9)  Can we expand wildcards first and send the path literally to the
+receiving Vim?  Or make an exception for #, it's not useful remotely.
+
+":sbr" docs state it respect 'switchbuf', but "vsplit" does not cause a
+vertical split. (Haldean Brown, 2017 Mar 1)
+
 Use ADDR_OTHER instead of ADDR_LINES for many more commands.
 Add tests for using number larger than number of lines in buffer.
+
+Might be useful to have isreadonly(), like we have islocked().
+Avoids exceptions, e.g. when using the b: namespace as a dict.
 
 Patch to make v:shell_error writable. (Christian Brabandt, 2016 Sep 27)
 Useful to restore it.  Is there another solution?
@@ -200,14 +227,14 @@ Useful to restore it.  Is there another solution?
 "ci[" does not look for next [ like ci" does look for next ".
 (J.F. 2017 Jan 7)
 
-On MS-Windows with 'clipboard' set to "unnamed" this doesn't work to double
-lines: :g/^/normal yyp   On Unix it works OK.  (Bryce Orgill, 2016 Nov 5)
-
 Patch for wrong cursor position on wrapped line, involving breakindent.
 (Ozaki Kiichi, 2016 Nov 25)
 Does this also fix #1408 ?
 
 Patch for 'cursorlinenr' option. (Ozaki Kiichi, 2016 Nov 30)
+
+Window resizing with 'winfixheight': With a vertical split the height changes
+anyway. (Tommy allen, 2017 Feb 21, #1502)
 
 When adding an item to a new quickfix list make ":cnext" jump to that item.
 Make a difference being at the first item and not having used :cnext at all.
@@ -221,12 +248,11 @@ Patch to make it possible to extend a list with itself.
 
 Patch to add Zstandard compressed file support. (Nick Terrell, 2016 Oct 24)
 
-Patch to add new regexp classes :ident:, :keyword:, :fname:.
-(ichizok, 2016 Jan 12, #1373)
-
 Patch to add trim() function. (Bukn, 2016 Nov 25, #1280)
 
 Patch to add MODIFIED_BY to MSVC build file. (Chen Lei, 2016 Nov 24, #1275)
+
+Patch to change argument of :marks. (LemonBoy, 2017 Jan 29, #1426)
 
 On Windows buffer completion sees backslash as escape char instead of path
 separator. (Toffanim, 2016 Nov 24, #1274)
@@ -265,7 +291,7 @@ change as a word boundary. (btucker-MPCData, 2016 Nov 6, #1235)
 Idea from Sven: record sequence of keys.  Useful to show others what they are
 doing (look over the shoulder), and also to see what happened.
 Probably list of keystrokes, with some annotations for mode changes.
-Could store in logfile to be able to analyise it with an external command.
+Could store in logfile to be able to analyse it with an external command.
 E.g. to see when's the last time a plugin command was used.
 
 execute() cannot be used with command completeion. (Daniel Hahler, 2016 Oct 1,
@@ -293,21 +319,13 @@ Also with latest version.
 Cannot delete a file with square brackets with delete(). (#696)
 
 Patch to add ":syn foldlevel" to use fold level further down the line.
-(Brad King, 2016 Oct 19)
+(Brad King, 2016 Oct 19, update 2017 Jan 30)
 
 Completion for input() does not expand environment variables. (chdiza, 2016
 Jul 25, #948)
 
 Patch to fix wrong encoding of error message on Cygwin/MSYS terminal.
 (Ken Takata, 2016 Oct 4)
-
-Patch to introduce 'cmdencoding'. (Ken Takata, Aug 18?)
-Better help Aug 19.
-Problem: applies to too many commands, such as :cbuffer.
-Updated patch with three options, 2016 Sep 8.
-    Win32: When running ":make" and 'encoding' differs from the system locale,
-    the output should be converted.  Esp. when 'encoding' is "utf-8". (Yongwei
-    Wu) Should we use 'termencoding' for this?
 
 Patch to add 'systemencoding', convert between 'encoding' and this for file
 names, shell commands and the like.  (Kikuchan, 2010 Oct 14)
@@ -381,7 +399,7 @@ When doing "vi buf.md" a BufNew autocommand for *.md is not triggered.
 Because of using the initial buffer? (Dun Peal, 2016 May 12)
 
 Patch to add the :bvimgrep command.  (Christian Brabandt, 2014 Nov 12)
-Updated 2016 Jun 10, #858
+Updated 2016 Jun 10, #858  Update 2017 Mar 28: use <buffer>
 
 Add redrawtabline command. (Naruhiko Nishino, 2016 Jun 11)
 
@@ -394,6 +412,9 @@ Patch to improve indenting for C++ constructor with initializer list.
 Add stronger encryption.  Could use libsodium (NaCl).
 https://github.com/jedisct1/libsodium/
 Possibly include the needed code so that it can be build everywhere.
+
+Add a way to restart a timer.  It's similar to timer_stop() and timer_start(),
+but the reference remains valid.
 
 Patch to add setbufline(). (email from Yasuhiro Matsumoto, patch by Ozaki
 Kiichi, 2016 Feb 28)
@@ -1015,6 +1036,9 @@ Patch for :tabcloseleft, after closing a tab go to left tab. (William Bowers,
 
 Patch to improve equivalence classes in regexp patterns.
 (Christian Brabandt, 2013 Jan 16, update Jan 17)
+
+Patch to add new regexp classes :ident:, :keyword:, :fname:.
+(ichizok, 2016 Jan 12, #1373)
 
 Patch with suggestions for starting.txt. (Tony Mechelynck, 2012 Oct 24)
 But use Gnome instead of GTK?

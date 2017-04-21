@@ -35,9 +35,10 @@ typedef struct tag_pointers
 } tagptrs_T;
 
 /*
- * The matching tags are first stored in one of the ht_match[] hash tables.  In
+ * The matching tags are first stored in one of the hash tables.  In
  * which one depends on the priority of the match.
- * At the end, all the matches from ht_match[] are concatenated, to make a list
+ * ht_match[] is used to find duplicates, ga_match[] to keep them in sequence.
+ * At the end, all the matches from ga_match[] are concatenated, to make a list
  * sorted on priority.
  */
 #define MT_ST_CUR	0		/* static match in current file */
@@ -177,7 +178,7 @@ do_tag(
     free_string_option(nofile_fname);
     nofile_fname = NULL;
 
-    clearpos(&saved_fmark.mark);	/* shutup gcc 4.0 */
+    CLEAR_POS(&saved_fmark.mark);	/* shutup gcc 4.0 */
     saved_fmark.fnum = 0;
 
     /*
@@ -604,10 +605,10 @@ do_tag(
 		if (msg_col == 0)
 		    msg_didout = FALSE;	/* overwrite previous message */
 		msg_start();
-		MSG_PUTS_ATTR(_("  # pri kind tag"), hl_attr(HLF_T));
+		MSG_PUTS_ATTR(_("  # pri kind tag"), HL_ATTR(HLF_T));
 		msg_clr_eos();
 		taglen_advance(taglen);
-		MSG_PUTS_ATTR(_("file\n"), hl_attr(HLF_T));
+		MSG_PUTS_ATTR(_("file\n"), HL_ATTR(HLF_T));
 
 		for (i = 0; i < num_matches && !got_int; ++i)
 		{
@@ -632,7 +633,7 @@ do_tag(
 		    msg_advance(13);
 		    msg_outtrans_len_attr(tagp.tagname,
 				       (int)(tagp.tagname_end - tagp.tagname),
-							      hl_attr(HLF_T));
+							      HL_ATTR(HLF_T));
 		    msg_putchar(' ');
 		    taglen_advance(taglen);
 
@@ -641,7 +642,7 @@ do_tag(
 		    p = tag_full_fname(&tagp);
 		    if (p != NULL)
 		    {
-			msg_puts_long_attr(p, hl_attr(HLF_D));
+			msg_puts_long_attr(p, HL_ATTR(HLF_D));
 			vim_free(p);
 		    }
 		    if (msg_col > 0)
@@ -676,7 +677,7 @@ do_tag(
 				continue;
 			    }
 			    /* print all other extra fields */
-			    attr = hl_attr(HLF_CM);
+			    attr = HL_ATTR(HLF_CM);
 			    while (*p && *p != '\r' && *p != '\n')
 			    {
 				if (msg_col + ptr2cells(p) >= Columns)
@@ -1002,7 +1003,7 @@ do_tag(
 							   && num_matches > 1)
 		{
 		    if (ic)
-			msg_attr(IObuff, hl_attr(HLF_W));
+			msg_attr(IObuff, HL_ATTR(HLF_W));
 		    else
 			msg(IObuff);
 		    msg_scroll = TRUE;	/* don't overwrite this message */
@@ -1139,7 +1140,7 @@ do_tags(exarg_T *eap UNUSED)
 		tagstack[i].fmark.mark.lnum);
 	    msg_outtrans(IObuff);
 	    msg_outtrans_attr(name, tagstack[i].fmark.fnum == curbuf->b_fnum
-							? hl_attr(HLF_D) : 0);
+							? HL_ATTR(HLF_D) : 0);
 	    vim_free(name);
 	}
 	out_flush();		    /* show one line at a time */
@@ -1339,7 +1340,8 @@ find_tags(
 #endif
 
     char_u	*mfp;
-    hashtab_T	ht_match[MT_COUNT];
+    garray_T	ga_match[MT_COUNT];	/* stores matches in sequence */
+    hashtab_T	ht_match[MT_COUNT];	/* stores matches by key */
     hash_T	hash = 0;
     int		match_count = 0;		/* number of matches found */
     char_u	**matches;
@@ -1405,7 +1407,10 @@ find_tags(
     ebuf = alloc(LSIZE);
 #endif
     for (mtt = 0; mtt < MT_COUNT; ++mtt)
+    {
+	ga_init2(&ga_match[mtt], (int)sizeof(char_u *), 100);
 	hash_init(&ht_match[mtt]);
+    }
 
     /* check for out of memory situation */
     if (lbuf == NULL || tag_fname == NULL
@@ -2000,7 +2005,7 @@ parse_line:
 #endif
 			if (	   fnamencmp(lbuf, tagp.fname, p - lbuf) == 0
 #ifdef FEAT_TAG_ANYWHITE
-				&& vim_iswhite(tagp.fname[p - lbuf])
+				&& VIM_ISWHITE(tagp.fname[p - lbuf])
 #else
 				&& tagp.fname[p - lbuf] == TAB
 #endif
@@ -2213,7 +2218,7 @@ parse_line:
 	    }
 
 	    /*
-	     * If a match is found, add it to ht_match[].
+	     * If a match is found, add it to ht_match[] and ga_match[].
 	     */
 	    if (match)
 	    {
@@ -2271,7 +2276,7 @@ parse_line:
 		}
 
 		/*
-		 * Add the found match in ht_match[mtt].
+		 * Add the found match in ht_match[mtt] and ga_match[mtt].
 		 * Store the info we need later, which depends on the kind of
 		 * tags we are dealing with.
 		 */
@@ -2350,18 +2355,19 @@ parse_line:
 		}
 		else
 		{
-#define TAG_SEP 0x01
+#define TAG_SEP 0x02
 		    size_t tag_fname_len = STRLEN(tag_fname);
 #ifdef FEAT_EMACS_TAGS
 		    size_t ebuf_len = 0;
 #endif
 
 		    /* Save the tag in a buffer.
-		     * Use 0x01 to separate fields (Can't use NUL, because the
-		     * hash key is terminated by NUL).
-		     * Emacs tag: <mtt><tag_fname><0x01><ebuf><0x01><lbuf><NUL>
-		     * other tag: <mtt><tag_fname><0x01><0x01><lbuf><NUL>
-		     * without Emacs tags: <mtt><tag_fname><0x01><lbuf><NUL>
+		     * Use 0x02 to separate fields (Can't use NUL because the
+		     * hash key is terminated by NUL, or Ctrl_A because that is
+		     * part of some Emacs tag files -- see parse_tag_line).
+		     * Emacs tag: <mtt><tag_fname><0x02><ebuf><0x02><lbuf><NUL>
+		     * other tag: <mtt><tag_fname><0x02><0x02><lbuf><NUL>
+		     * without Emacs tags: <mtt><tag_fname><0x02><lbuf><NUL>
 		     * Here <mtt> is the "mtt" value plus 1 to avoid NUL.
 		     */
 		    len = (int)tag_fname_len + (int)STRLEN(lbuf) + 3;
@@ -2423,7 +2429,8 @@ parse_line:
 		    if (HASHITEM_EMPTY(hi))
 		    {
 			if (hash_add_item(&ht_match[mtt], hi, mfp, hash)
-								       == FAIL)
+								       == FAIL
+				       || ga_grow(&ga_match[mtt], 1) != OK)
 			{
 			    /* Out of memory! Just forget about the rest. */
 			    retval = OK;
@@ -2431,7 +2438,11 @@ parse_line:
 			    break;
 			}
 			else
+			{
+			    ((char_u **)(ga_match[mtt].ga_data))
+						[ga_match[mtt].ga_len++] = mfp;
 			    ++match_count;
+			}
 		    }
 		    else
 			/* duplicate tag, drop it */
@@ -2533,7 +2544,7 @@ findtag_end:
 #endif
 
     /*
-     * Move the matches from the ht_match[] arrays into one list of
+     * Move the matches from the ga_match[] arrays into one list of
      * matches.  When retval == FAIL, free the matches.
      */
     if (retval == FAIL)
@@ -2547,34 +2558,28 @@ findtag_end:
     match_count = 0;
     for (mtt = 0; mtt < MT_COUNT; ++mtt)
     {
-	hashitem_T	*hi;
-	long_u		todo;
-
-	todo = (long)ht_match[mtt].ht_used;
-	for (hi = ht_match[mtt].ht_array; todo > 0; ++hi)
+	for (i = 0; i < ga_match[mtt].ga_len; ++i)
 	{
-	    if (!HASHITEM_EMPTY(hi))
+	    mfp = ((char_u **)(ga_match[mtt].ga_data))[i];
+	    if (matches == NULL)
+		vim_free(mfp);
+	    else
 	    {
-		mfp = hi->hi_key;
-		if (matches == NULL)
-		    vim_free(mfp);
-		else
+		if (!name_only)
 		{
-		    if (!name_only)
-		    {
-			/* Change mtt back to zero-based. */
-			*mfp = *mfp - 1;
+		    /* Change mtt back to zero-based. */
+		    *mfp = *mfp - 1;
 
-			/* change the TAG_SEP back to NUL */
-			for (p = mfp + 1; *p != NUL; ++p)
-			    if (*p == TAG_SEP)
-				*p = NUL;
-		    }
-		    matches[match_count++] = (char_u *)mfp;
+		    /* change the TAG_SEP back to NUL */
+		    for (p = mfp + 1; *p != NUL; ++p)
+			if (*p == TAG_SEP)
+			    *p = NUL;
 		}
-		todo--;
+		matches[match_count++] = (char_u *)mfp;
 	    }
 	}
+
+	ga_clear(&ga_match[mtt]);
 	hash_clear(&ht_match[mtt]);
     }
 
@@ -3199,8 +3204,12 @@ jumpto_tag(
      * open a new tab page. */
     if (postponed_split || cmdmod.tab != 0)
     {
-	win_split(postponed_split > 0 ? postponed_split : 0,
-						       postponed_split_flags);
+	if (win_split(postponed_split > 0 ? postponed_split : 0,
+						postponed_split_flags) == FAIL)
+	{
+	    --RedrawingDisabled;
+	    goto erret;
+	}
 	RESET_BINDING(curwin);
     }
 #endif
@@ -3540,7 +3549,7 @@ simplify_filename(char_u *filename)
 		tail = p + 1;
 		if (p[1] != NUL)
 		    while (vim_ispathsep(*tail))
-			mb_ptr_adv(tail);
+			MB_PTR_ADV(tail);
 		else if (p > start)
 		    --p;		/* strip preceding path separator */
 		STRMOVE(p, tail);
@@ -3552,7 +3561,7 @@ simplify_filename(char_u *filename)
 	    /* Skip to after ".." or "../" or "..///". */
 	    tail = p + 2;
 	    while (vim_ispathsep(*tail))
-		mb_ptr_adv(tail);
+		MB_PTR_ADV(tail);
 
 	    if (components > 0)		/* strip one preceding component */
 	    {
@@ -3579,7 +3588,7 @@ simplify_filename(char_u *filename)
 		    --p;
 		    /* Skip back to after previous '/'. */
 		    while (p > start && !after_pathsep(start, p))
-			mb_ptr_back(start, p);
+			MB_PTR_BACK(start, p);
 
 		    if (!do_strip)
 		    {
@@ -3872,11 +3881,11 @@ add_tag_field(
 }
 
 /*
- * Add the tags matching the specified pattern to the list "list"
- * as a dictionary
+ * Add the tags matching the specified pattern "pat" to the list "list"
+ * as a dictionary. Use "buf_fname" for priority, unless NULL.
  */
     int
-get_tags(list_T *list, char_u *pat)
+get_tags(list_T *list, char_u *pat, char_u *buf_fname)
 {
     int		num_matches, i, ret;
     char_u	**matches, *p;
@@ -3886,7 +3895,7 @@ get_tags(list_T *list, char_u *pat)
     long	is_static;
 
     ret = find_tags(pat, &num_matches, &matches,
-				    TAG_REGEXP | TAG_NOIC, (int)MAXCOL, NULL);
+				TAG_REGEXP | TAG_NOIC, (int)MAXCOL, buf_fname);
     if (ret == OK && num_matches > 0)
     {
 	for (i = 0; i < num_matches; ++i)
@@ -3928,7 +3937,7 @@ get_tags(list_T *list, char_u *pat)
 		    else if (STRNCMP(p, "file:", 5) == 0)
 			/* skip "file:" (static tag) */
 			p += 4;
-		    else if (!vim_iswhite(*p))
+		    else if (!VIM_ISWHITE(*p))
 		    {
 			char_u	*s, *n;
 			int	len;

@@ -1966,7 +1966,7 @@ channel_parse_json(channel_T *channel, ch_part_T part)
 	     * more (but still incomplete): set a deadline of 100 msec. */
 	    ch_logn(channel,
 		    "Incomplete message (%d bytes) - wait 100 msec for more",
-		    buflen);
+		    (int)buflen);
 	    reader.js_used = 0;
 	    chanpart->ch_wait_len = buflen;
 #ifdef WIN32
@@ -2571,9 +2571,14 @@ may_invoke_callback(channel_T *channel, ch_part_T part)
 	    if (nl == NULL)
 	    {
 		/* Flush remaining message that is missing a NL. */
-		buf = vim_realloc(buf, node->rq_buflen + 1);
-		if (buf == NULL)
+		char_u	*new_buf;
+
+		new_buf = vim_realloc(buf, node->rq_buflen + 1);
+		if (new_buf == NULL)
+		    /* This might fail over and over again, should the message
+		     * be dropped? */
 		    return FALSE;
+		buf = new_buf;
 		node->rq_buffer = buf;
 		nl = buf + node->rq_buflen++;
 		*nl = NUL;
@@ -3299,6 +3304,7 @@ channel_read_block(channel_T *channel, ch_part_T part, int timeout)
 	channel_read(channel, part, "channel_read_block");
     }
 
+    /* We have a complete message now. */
     if (mode == MODE_RAW)
     {
 	msg = channel_get_all(channel, part);

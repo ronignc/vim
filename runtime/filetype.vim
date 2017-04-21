@@ -1,7 +1,7 @@
 " Vim support file to detect file types
 "
 " Maintainer:	Bram Moolenaar <Bram@vim.org>
-" Last Change:	2017 Jan 06
+" Last Change:	2017 Apr 15
 
 " Listen very carefully, I will say this only once
 if exists("did_load_filetypes")
@@ -288,7 +288,8 @@ au BufNewFile,BufRead *.bib			setf bib
 au BufNewFile,BufRead *.bst			setf bst
 
 " BIND configuration
-au BufNewFile,BufRead named.conf,rndc.conf	setf named
+" sudoedit uses namedXXXX.conf
+au BufNewFile,BufRead named*.conf,rndc*.conf	setf named
 
 " BIND zone
 au BufNewFile,BufRead named.root		setf bindzone
@@ -309,9 +310,10 @@ au BufNewFile,BufRead *.bl			setf blank
 au BufNewFile,BufRead */etc/blkid.tab,*/etc/blkid.tab.old   setf xml
 
 " Bazel (http://bazel.io)
-autocmd BufRead,BufNewFile *.bzl,WORKSPACE setfiletype bzl
+autocmd BufRead,BufNewFile *.bzl,WORKSPACE 	setf bzl
 if has("fname_case")
-  autocmd BufRead,BufNewFile BUILD setfiletype bzl
+  " There is another check for BUILD further below.
+  autocmd BufRead,BufNewFile BUILD		setf bzl
 endif
 
 " C or lpc
@@ -1366,6 +1368,9 @@ endfunc
 " Not Quite C
 au BufNewFile,BufRead *.nqc			setf nqc
 
+" NSE - Nmap Script Engine - uses Lua syntax
+au BufNewFile,BufRead *.nse			setf lua
+
 " NSIS
 au BufNewFile,BufRead *.nsi,*.nsh		setf nsis
 
@@ -2280,6 +2285,9 @@ au BufNewFile,BufRead .tidyrc,tidyrc		setf tidy
 " TF mud client
 au BufNewFile,BufRead *.tf,.tfrc,tfrc		setf tf
 
+" tmux configuration
+au BufNewFile,BufRead {.,}tmux*.conf		setf tmux
+
 " TPP - Text Presentation Program
 au BufNewFile,BufReadPost *.tpp			setf tpp
 
@@ -2594,6 +2602,11 @@ au BufNewFile,BufRead *asterisk*/*voicemail.conf* call s:StarSetf('asteriskvm')
 
 " Bazaar version control
 au BufNewFile,BufRead bzr_log.*			setf bzr
+
+" Bazel build file
+if !has("fname_case")
+  au BufNewFile,BufRead BUILD			setf bzl
+endif
 
 " BIND zone
 au BufNewFile,BufRead */named/db.*,*/bind/db.*	call s:StarSetf('bindzone')
